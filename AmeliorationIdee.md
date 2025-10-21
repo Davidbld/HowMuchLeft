@@ -10,11 +10,6 @@ Saisie flexible : accepter des formats différents (8:35, 0835) et les normalise
 Fonction d'ajout de pause.
 Modification du nom possible. Garde en mémoire le derniers
 
-## Sauvegarde/Cache
-
-Sauvegarde automatique en json (bouton pour effacer si besoin).
-Profils : chaque personne peut gérer ses propres feuilles horaires.
-
 ## Design
 
 Faire une interface plus intuitive

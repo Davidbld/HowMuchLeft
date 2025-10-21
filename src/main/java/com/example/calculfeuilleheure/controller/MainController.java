@@ -1,6 +1,7 @@
 package com.example.calculfeuilleheure.controller;
 
 import com.example.calculfeuilleheure.model.TimesheetEntry;
+import com.example.calculfeuilleheure.model.User;
 import com.example.calculfeuilleheure.strategy.ValidationStrategy;
 import com.example.calculfeuilleheure.strategy.HourFormatValidationStrategy;
 import com.itextpdf.kernel.pdf.PdfDocument;
@@ -38,6 +39,8 @@ import java.util.HashMap;
  * Gère les interactions utilisateur et la logique de la feuille d'heure.
  */
 public class MainController {
+
+    private User currentUser;
 
     @FXML
     private DatePicker datePicker;
@@ -82,6 +85,22 @@ public class MainController {
     // Stratégie de validation pour le format des heures
     private final ValidationStrategy hourValidationStrategy = new HourFormatValidationStrategy();
 
+    // Instance Gson pour la sérialisation JSON avec adaptateur pour LocalDate
+    private final com.google.gson.Gson gson = new com.google.gson.GsonBuilder()
+            .registerTypeAdapter(java.time.LocalDate.class, new com.google.gson.JsonDeserializer<java.time.LocalDate>() {
+                @Override
+                public java.time.LocalDate deserialize(com.google.gson.JsonElement json, java.lang.reflect.Type typeOfT, com.google.gson.JsonDeserializationContext context) throws com.google.gson.JsonParseException {
+                    return java.time.LocalDate.parse(json.getAsString());
+                }
+            })
+            .registerTypeAdapter(java.time.LocalDate.class, new com.google.gson.JsonSerializer<java.time.LocalDate>() {
+                @Override
+                public com.google.gson.JsonElement serialize(java.time.LocalDate src, java.lang.reflect.Type typeOfSrc, com.google.gson.JsonSerializationContext context) {
+                    return new com.google.gson.JsonPrimitive(src.toString());
+                }
+            })
+            .create();
+
     @FXML
     public void initialize() {
         // Initialisation des colonnes du tableau
@@ -122,6 +141,45 @@ public class MainController {
         });
 
         tableView.setItems(entries);
+    }
+
+    /**
+     * Définit l'utilisateur actuel.
+     * @param user utilisateur connecté
+     */
+    public void setCurrentUser(User user) {
+        this.currentUser = user;
+        // Charger les entrées sauvegardées pour cet utilisateur
+        loadEntriesFromJson();
+    }
+
+    /**
+     * Sauvegarde les entrées en JSON pour l'utilisateur actuel.
+     */
+    private void saveEntriesToJson() {
+        if (currentUser == null) return;
+        try (java.io.FileWriter writer = new java.io.FileWriter("entries_" + currentUser.getLogin() + ".json")) {
+            gson.toJson(entries, writer);
+        } catch (java.io.IOException e) {
+            showAlert("Erreur", "Impossible de sauvegarder les données.");
+        }
+    }
+
+    /**
+     * Charge les entrées depuis le fichier JSON de l'utilisateur.
+     */
+    private void loadEntriesFromJson() {
+        if (currentUser == null) return;
+        try (java.io.FileReader reader = new java.io.FileReader("entries_" + currentUser.getLogin() + ".json")) {
+            java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<java.util.List<TimesheetEntry>>(){}.getType();
+            java.util.List<TimesheetEntry> loadedEntries = gson.fromJson(reader, listType);
+            if (loadedEntries != null) {
+                entries.addAll(loadedEntries);
+                updateTotals();
+            }
+        } catch (java.io.IOException e) {
+            // Fichier n'existe pas encore, pas d'erreur
+        }
     }
 
     /**
@@ -198,6 +256,9 @@ public class MainController {
         // Mettre à jour les totaux
         updateTotals();
 
+        // Sauvegarder automatiquement en JSON
+        saveEntriesToJson();
+
         // Réinitialiser les champs (conserver la date)
         hoursField.clear();
         endHoursField.clear();
@@ -262,8 +323,9 @@ public class MainController {
             // Ajouter le gestionnaire de pied de page
             pdf.addEventHandler(PdfDocumentEvent.END_PAGE, new FooterEventHandler());
 
-            // En-tête
-            Paragraph header = new Paragraph("Feuille d'heure")
+            // En-tête avec prénom
+            String userName = (currentUser != null) ? currentUser.getLogin() : "Utilisateur";
+            Paragraph header = new Paragraph("Feuille d'heure de " + userName)
                     .setBold()
                     .setFontSize(18)
                     .setTextAlignment(TextAlignment.CENTER)
@@ -358,13 +420,15 @@ public class MainController {
         Alert confirmDialog = new Alert(Alert.AlertType.CONFIRMATION);
         confirmDialog.setTitle("Confirmation de suppression");
         confirmDialog.setHeaderText("Supprimer l'entrée ?");
-        confirmDialog.setContentText("Voulez-vous vraiment supprimer l'entrée du " + 
+        confirmDialog.setContentText("Voulez-vous vraiment supprimer l'entrée du " +
             selectedEntry.getDate().format(dateFormatter) + " ?\nCette action est irréversible.");
 
         confirmDialog.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
                 entries.remove(selectedEntry);
                 updateTotals();
+                // Sauvegarder après suppression
+                saveEntriesToJson();
             }
         });
     }

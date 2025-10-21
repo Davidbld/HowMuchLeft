@@ -57,6 +57,20 @@
       <version>5.1.1</version>
       <scope>test</scope>
     </dependency>
+
+    <!-- Gson for JSON serialization -->
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>2.10.1</version>
+    </dependency>
+
+    <!-- BCrypt for password hashing -->
+    <dependency>
+      <groupId>at.favre.lib</groupId>
+      <artifactId>bcrypt</artifactId>
+      <version>0.10.2</version>
+    </dependency>
   </dependencies>
 
   <build>
@@ -80,6 +94,63 @@
         <configuration>
           <mainClass>com.example.calculfeuilleheure.MainApp</mainClass>
         </configuration>
+      </plugin>
+
+      <!-- Maven Assembly Plugin for executable JAR -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>3.3.0</version>
+        <configuration>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+          </descriptorRefs>
+          <archive>
+            <manifest>
+              <mainClass>com.example.calculfeuilleheure.MainApp</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+        <executions>
+          <execution>
+            <id>make-assembly</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- JPackage Plugin for native executables -->
+      <plugin>
+        <groupId>org.panteleyev</groupId>
+        <artifactId>jpackage-maven-plugin</artifactId>
+        <version>1.6.0</version>
+        <configuration>
+          <name>CalculFeuilleHeure</name>
+          <appVersion>1.0</appVersion>
+          <vendor>Example</vendor>
+          <input>${project.build.directory}</input>
+          <mainJar>${project.artifactId}-${project.version}-jar-with-dependencies.jar</mainJar>
+          <mainClass>com.example.calculfeuilleheure.MainApp</mainClass>
+          <javaOptions>
+            <javaOption>--add-opens</javaOption>
+            <javaOption>javafx.graphics/com.sun.javafx.application=ALL-UNNAMED</javaOption>
+          </javaOptions>
+        </configuration>
+        <executions>
+          <execution>
+            <id>jpackage-linux</id>
+            <phase>package</phase>
+            <goals>
+              <goal>jpackage</goal>
+            </goals>
+            <configuration>
+              <destination>${project.build.directory}/dist/linux</destination>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

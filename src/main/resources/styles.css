@@ -1,0 +1,23 @@
+/* Styles pour l'application Calcul Feuille d'Heure */
+
+/* Style pour le conteneur principal de la vue de connexion */
+.login-container {
+    -fx-padding: 20;
+    -fx-alignment: center;
+}
+
+/* Style pour le titre de connexion */
+.login-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+/* Style pour les labels d'erreur */
+.error-label {
+    -fx-text-fill: red;
+}
+
+/* Style pour le conteneur principal de la vue principale */
+.main-container {
+    -fx-padding: 15;
+}

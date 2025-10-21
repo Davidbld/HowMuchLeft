@@ -10,7 +10,7 @@
 -->
 <VBox xmlns="http://javafx.com/javafx/20" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.example.calculfeuilleheure.controller.MainController"
-      spacing="20" style="-fx-padding: 15;">
+      spacing="20" styleClass="main-container">
 
     <HBox spacing="10" alignment="CENTER_LEFT">
         <Label text="Date:"/>
