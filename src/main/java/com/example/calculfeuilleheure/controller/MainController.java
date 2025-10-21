@@ -1,6 +1,8 @@
 package com.example.calculfeuilleheure.controller;
 
 import com.example.calculfeuilleheure.model.TimesheetEntry;
+import com.example.calculfeuilleheure.strategy.ValidationStrategy;
+import com.example.calculfeuilleheure.strategy.HourFormatValidationStrategy;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
@@ -26,6 +28,7 @@ import javafx.stage.FileChooser;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.HashMap;
@@ -75,6 +78,9 @@ public class MainController {
     private final Map<String, Double> weeklyTotals = new HashMap<>();
     private final Map<java.time.LocalDate, Integer> dateCounts = new HashMap<>();
     private final Map<String, java.time.LocalDate> weekMaxDates = new HashMap<>();
+
+    // Stratégie de validation pour le format des heures
+    private final ValidationStrategy hourValidationStrategy = new HourFormatValidationStrategy();
 
     @FXML
     public void initialize() {
@@ -160,12 +166,12 @@ public class MainController {
         double hours;
         double endHours;
 
-        // Regex pour valider le format xxhyy (ex: 08h30)
-        if (!hoursText.matches("^\\d{1,2}h\\d{2}$")) {
+        // Validation du format des heures en utilisant la stratégie
+        if (!hourValidationStrategy.validate(hoursText)) {
             showAlert("Erreur", "Veuillez entrer les heures au format 00h00 (ex: 08h30).");
             return;
         }
-        if (!endHoursText.matches("^\\d{1,2}h\\d{2}$")) {
+        if (!hourValidationStrategy.validate(endHoursText)) {
             showAlert("Erreur", "Veuillez entrer l'heure de fin au format 00h00 (ex: 17h30).");
             return;
         }
@@ -187,7 +193,7 @@ public class MainController {
         }
 
         TimesheetEntry entry = new TimesheetEntry(datePicker.getValue(), hours, endHours);
-        entries.add(entry);
+        entries.add(0, entry);
 
         // Mettre à jour les totaux
         updateTotals();
@@ -218,7 +224,7 @@ public class MainController {
             try {
                 createPdf(file.getAbsolutePath());
                 showAlert("Succès", "PDF généré avec succès.");
-            } catch (FileNotFoundException e) {
+            } catch (IOException e) {
                 showAlert("Erreur", "Impossible de créer le fichier PDF.");
             }
         }
@@ -245,87 +251,86 @@ public class MainController {
     /**
      * Crée le PDF avec les données de la feuille d'heure.
      * @param dest chemin du fichier PDF à créer
-     * @throws FileNotFoundException si le fichier ne peut pas être créé
+     * @throws IOException si le fichier ne peut pas être créé ou fermé
      */
-    private void createPdf(String dest) throws FileNotFoundException {
-        PdfWriter writer = new PdfWriter(dest);
-        PdfDocument pdf = new PdfDocument(writer);
-        Document document = new Document(pdf);
-        document.setMargins(36, 36, 36, 36); // Marges de 36 points (0.5 pouce)
+    private void createPdf(String dest) throws IOException {
+        try (PdfWriter writer = new PdfWriter(dest);
+             PdfDocument pdf = new PdfDocument(writer);
+             Document document = new Document(pdf)) {
+            document.setMargins(36, 36, 36, 36); // Marges de 36 points (0.5 pouce)
 
-        // Ajouter le gestionnaire de pied de page
-        pdf.addEventHandler(PdfDocumentEvent.END_PAGE, new FooterEventHandler());
+            // Ajouter le gestionnaire de pied de page
+            pdf.addEventHandler(PdfDocumentEvent.END_PAGE, new FooterEventHandler());
 
-        // En-tête
-        Paragraph header = new Paragraph("Feuille d'heure")
-                .setBold()
-                .setFontSize(18)
-                .setTextAlignment(TextAlignment.CENTER)
-                .setMarginBottom(10);
-        document.add(header);
-
-        String generatedDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-        Paragraph subHeader = new Paragraph("Généré le " + generatedDate)
-                .setFontSize(10)
-                .setTextAlignment(TextAlignment.CENTER)
-                .setMarginBottom(20);
-        document.add(subHeader);
-
-        // Tableau stylisé
-        float[] columnWidths = {200F, 100F, 100F, 100F, 150F, 200F};
-        Table table = new Table(UnitValue.createPercentArray(columnWidths)).useAllAvailableWidth();
-        table.setMarginBottom(20);
-
-        // En-têtes avec style
-        String[] headers = {"Date", "Heures", "Heure de fin", "Heures travaillées", "Total journalier", "Total hebdomadaire"};
-        for (String headerText : headers) {
-            Cell headerCell = new Cell().add(new Paragraph(headerText).setBold())
-                    .setBackgroundColor(new DeviceRgb(200, 200, 200))
+            // En-tête
+            Paragraph header = new Paragraph("Feuille d'heure")
+                    .setBold()
+                    .setFontSize(18)
                     .setTextAlignment(TextAlignment.CENTER)
-                    .setPadding(5);
-            table.addHeaderCell(headerCell);
-        }
+                    .setMarginBottom(10);
+            document.add(header);
 
-        // Données
-        for (TimesheetEntry entry : entries) {
-            table.addCell(createCell(entry.getDate().format(dateFormatter)));
-            table.addCell(createCell(entry.getHoursFormatted()));
-            table.addCell(createCell(entry.getEndHoursFormatted()));
-            table.addCell(createCell(entry.getWorkedHoursFormatted()));
+            String generatedDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+            Paragraph subHeader = new Paragraph("Généré le " + generatedDate)
+                    .setFontSize(10)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginBottom(20);
+            document.add(subHeader);
 
-            // Ajouter le total journalier dans le PDF
-            Integer count = dateCounts.get(entry.getDate());
-            if (count != null && count > 1) {
-                Double total = dailyTotals.get(entry.getDate());
-                table.addCell(createCell(TimesheetEntry.formatTotalHours(total != null ? total : 0.0)));
-            } else {
-                table.addCell(createCell("-"));
+            // Tableau stylisé
+            float[] columnWidths = {200F, 100F, 100F, 100F, 150F, 200F};
+            Table table = new Table(UnitValue.createPercentArray(columnWidths)).useAllAvailableWidth();
+            table.setMarginBottom(20);
+
+            // En-têtes avec style
+            String[] headers = {"Date", "Heures", "Heure de fin", "Heures travaillées", "Total journalier", "Total hebdomadaire"};
+            for (String headerText : headers) {
+                Cell headerCell = new Cell().add(new Paragraph(headerText).setBold())
+                        .setBackgroundColor(new DeviceRgb(200, 200, 200))
+                        .setTextAlignment(TextAlignment.CENTER)
+                        .setPadding(5);
+                table.addHeaderCell(headerCell);
             }
 
-            // Ajouter le total hebdomadaire dans le PDF
-            String weekKey = entry.getWeekYear() + "-" + entry.getWeekNumber();
-            java.time.LocalDate maxDate = weekMaxDates.get(weekKey);
-            if (maxDate != null && entry.getDate().equals(maxDate)) {
-                Double total = weeklyTotals.get(weekKey);
-                String formatted = TimesheetEntry.formatTotalHours(total != null ? total : 0.0);
-                table.addCell(createCell("Semaine " + entry.getWeekNumber() + ": " + formatted));
-            } else {
-                table.addCell(createCell(""));
+            // Données
+            for (TimesheetEntry entry : entries) {
+                table.addCell(createCell(entry.getDate().format(dateFormatter)));
+                table.addCell(createCell(entry.getHoursFormatted()));
+                table.addCell(createCell(entry.getEndHoursFormatted()));
+                table.addCell(createCell(entry.getWorkedHoursFormatted()));
+
+                // Ajouter le total journalier dans le PDF
+                Integer count = dateCounts.get(entry.getDate());
+                if (count != null && count > 1) {
+                    Double total = dailyTotals.get(entry.getDate());
+                    table.addCell(createCell(TimesheetEntry.formatTotalHours(total != null ? total : 0.0)));
+                } else {
+                    table.addCell(createCell("-"));
+                }
+
+                // Ajouter le total hebdomadaire dans le PDF
+                String weekKey = entry.getWeekYear() + "-" + entry.getWeekNumber();
+                java.time.LocalDate maxDate = weekMaxDates.get(weekKey);
+                if (maxDate != null && entry.getDate().equals(maxDate)) {
+                    Double total = weeklyTotals.get(weekKey);
+                    String formatted = TimesheetEntry.formatTotalHours(total != null ? total : 0.0);
+                    table.addCell(createCell("Semaine " + entry.getWeekNumber() + ": " + formatted));
+                } else {
+                    table.addCell(createCell(""));
+                }
             }
+
+            document.add(table);
+
+            // Résumé des heures totales
+            double totalHours = entries.stream().mapToDouble(TimesheetEntry::getWorkedHours).sum();
+            Paragraph summary = new Paragraph("Total des heures travaillées : " + TimesheetEntry.formatTotalHours(totalHours))
+                    .setBold()
+                    .setFontSize(12)
+                    .setTextAlignment(TextAlignment.RIGHT)
+                    .setMarginTop(20);
+            document.add(summary);
         }
-
-        document.add(table);
-
-        // Résumé des heures totales
-        double totalHours = entries.stream().mapToDouble(TimesheetEntry::getWorkedHours).sum();
-        Paragraph summary = new Paragraph("Total des heures travaillées : " + TimesheetEntry.formatTotalHours(totalHours))
-                .setBold()
-                .setFontSize(12)
-                .setTextAlignment(TextAlignment.RIGHT)
-                .setMarginTop(20);
-        document.add(summary);
-
-        document.close();
     }
 
     /**

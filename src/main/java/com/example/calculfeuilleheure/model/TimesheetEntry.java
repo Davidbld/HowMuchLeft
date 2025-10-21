@@ -2,7 +2,6 @@ package com.example.calculfeuilleheure.model;
 
 import java.time.LocalDate;
 import java.time.temporal.WeekFields;
-import java.util.List;
 
 /**
  * Classe représentant une entrée de feuille d'heure.
@@ -99,33 +98,7 @@ public class TimesheetEntry {
         return formatHours(getWorkedHours());
     }
 
-    /**
-     * Calcule le total des heures travaillées pour une date donnée.
-     * Méthode statique utilitaire pour calculer la somme des heures travaillées
-     * pour toutes les entrées d'une même date.
-     * @param entries liste de toutes les entrées
-     * @param date date pour laquelle calculer le total
-     * @return total des heures travaillées pour cette date
-     */
-    public static double calculateTotalHoursForDate(List<TimesheetEntry> entries, LocalDate date) {
-        return entries.stream()
-                .filter(entry -> entry.getDate().equals(date))
-                .mapToDouble(TimesheetEntry::getWorkedHours)
-                .sum();
-    }
 
-    /**
-     * Vérifie si cette entrée fait partie d'un groupe (même date avec plusieurs entrées).
-     * @param entries liste de toutes les entrées
-     * @return true si cette entrée fait partie d'un groupe de plusieurs entrées pour la même date
-     */
-    public boolean isPartOfGroup(List<TimesheetEntry> entries) {
-        long countForDate = entries.stream()
-                .map(TimesheetEntry::getDate)
-                .filter(d -> d.equals(this.date))
-                .count();
-        return countForDate > 1;
-    }
 
     /**
      * Formate le total des heures en format "xxhyy".
@@ -137,23 +110,38 @@ public class TimesheetEntry {
     }
 
     /**
-     * Parse une chaîne au format "xxhyy" en double (heures + minutes/60).
-     * Exemple : "8h30" -> 8.5
-     * @param hoursText chaîne au format "xxhyy"
+     * Parse une chaîne au format "xxhyy" (ex: "8h30") ou "xxyy" (ex: "830" pour 8h30) en double (heures + minutes/60).
+     * Exemple : "8h30" -> 8.5, "830" -> 8.5
+     * @param hoursText chaîne au format "xxhyy" ou "xxyy"
      * @return nombre d'heures en double
      * @throws NumberFormatException si le format est invalide
      */
     public static double parseHours(String hoursText) throws NumberFormatException {
-        String[] parts = hoursText.split("h");
-        if (parts.length != 2) {
-            throw new NumberFormatException("Format invalide : doit être xxhyy");
+        if (hoursText.contains("h")) {
+            // Format avec 'h' : "xxhyy"
+            String[] parts = hoursText.split("h");
+            if (parts.length != 2) {
+                throw new NumberFormatException("Format invalide : doit être xxhyy ou xxyy");
+            }
+            int hours = Integer.parseInt(parts[0]);
+            int minutes = Integer.parseInt(parts[1]);
+            if (minutes < 0 || minutes >= 60) {
+                throw new NumberFormatException("Minutes invalides : doivent être entre 00 et 59");
+            }
+            return hours + minutes / 60.0;
+        } else {
+            // Format sans 'h' : "xxyy" (ex: "830" pour 8h30)
+            if (hoursText.length() < 3 || hoursText.length() > 4) {
+                throw new NumberFormatException("Format invalide : doit être xxhyy ou xxyy");
+            }
+            int totalMinutes = Integer.parseInt(hoursText);
+            int hours = totalMinutes / 100;
+            int minutes = totalMinutes % 100;
+            if (minutes < 0 || minutes >= 60) {
+                throw new NumberFormatException("Minutes invalides : doivent être entre 00 et 59");
+            }
+            return hours + minutes / 60.0;
         }
-        int hours = Integer.parseInt(parts[0]);
-        int minutes = Integer.parseInt(parts[1]);
-        if (minutes < 0 || minutes >= 60) {
-            throw new NumberFormatException("Minutes invalides : doivent être entre 00 et 59");
-        }
-        return hours + minutes / 60.0;
     }
 
     /**
@@ -172,33 +160,5 @@ public class TimesheetEntry {
         return date.get(weekFields.weekBasedYear());
     }
 
-    /**
-     * Calcule le total des heures travaillées pour une semaine donnée.
-     * @param entries liste de toutes les entrées
-     * @param weekYear année de la semaine
-     * @param weekNumber numéro de la semaine
-     * @return total des heures travaillées pour cette semaine
-     */
-    public static double calculateTotalHoursForWeek(List<TimesheetEntry> entries, int weekYear, int weekNumber) {
-        return entries.stream()
-                .filter(entry -> entry.getWeekYear() == weekYear && entry.getWeekNumber() == weekNumber)
-                .mapToDouble(TimesheetEntry::getWorkedHours)
-                .sum();
-    }
 
-    /**
-     * Vérifie si cette entrée est la dernière de sa semaine (date la plus récente).
-     * @param entries liste de toutes les entrées
-     * @return true si cette entrée est la dernière de sa semaine
-     */
-    public boolean isLastInWeek(List<TimesheetEntry> entries) {
-        int myWeekYear = getWeekYear();
-        int myWeekNumber = getWeekNumber();
-        LocalDate maxDateInWeek = entries.stream()
-                .filter(entry -> entry.getWeekYear() == myWeekYear && entry.getWeekNumber() == myWeekNumber)
-                .map(TimesheetEntry::getDate)
-                .max(LocalDate::compareTo)
-                .orElse(null);
-        return maxDateInWeek != null && date.equals(maxDateInWeek);
-    }
 }

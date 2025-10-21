@@ -10,9 +10,9 @@
 -->
 <VBox xmlns="http://javafx.com/javafx/20" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.example.calculfeuilleheure.controller.MainController"
-      stylesheets="@style/style.css">
+      spacing="20" style="-fx-padding: 15;">
 
-    <HBox spacing="10">
+    <HBox spacing="10" alignment="CENTER_LEFT">
         <Label text="Date:"/>
         <DatePicker fx:id="datePicker" />
         <Label text="Heures travaillées:"/>
@@ -22,7 +22,7 @@
         <Button text="Ajouter" onAction="#handleAddEntry"/>
     </HBox>
 
-    <TableView fx:id="tableView" prefHeight="200" prefWidth="1150">
+    <TableView fx:id="tableView" VBox.vgrow="ALWAYS">
         <columns>
             <TableColumn fx:id="dateColumn" text="Date" prefWidth="150"/>
             <TableColumn fx:id="hoursColumn" text="Heures" prefWidth="150"/>
